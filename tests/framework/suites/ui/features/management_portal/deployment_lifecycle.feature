@@ -24,6 +24,7 @@ Feature: The Management Portal stops, redeploys, restores and deletes an API's d
 
   # The console has deploy pages for REST and GraphQL APIs only; LLM providers, LLM proxies and
   # MCP proxies are covered by the integration suite.
+  @CONSOLE-010
   Scenario: Journey: a REST API's live deployment can be neither deleted nor restored over itself
     Given I generate a unique handle from "deplc-ui-rest-project" and store it as "project"
     And I generate a unique handle from "deplc-ui-rest" and store it as "api"
@@ -60,7 +61,7 @@ Feature: The Management Portal stops, redeploys, restores and deletes an API's d
 
   # The console sends undeploy and restore without the gatewayId the control plane requires:
   # https://github.com/wso2/api-platform/issues/3900
-  @DEPLC-001 @DEPLC-002 @DEPLC-005 @known-issue
+  @DEPLC-001 @DEPLC-002 @DEPLC-005 @CONSOLE-014 @known-issue
   Scenario: Journey: a REST API's deployment is stopped, redeployed and deleted from its deploy page
     Given I generate a unique handle from "deplc-ui-rest-actions-project" and store it as "project"
     And I generate a unique handle from "deplc-ui-rest-actions" and store it as "api"
