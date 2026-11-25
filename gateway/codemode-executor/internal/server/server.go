@@ -124,7 +124,8 @@ func (s *Server) endpointServer(ep *config.Endpoint) *mcp.Server {
 	mcp.AddTool(srv, &mcp.Tool{Name: "search",
 		Description: "Find tools you can call from `execute`. Returns TypeScript declarations of the matching methods on the `codemode` object. An empty query lists every tool."},
 		func(ctx context.Context, req *mcp.CallToolRequest, in searchIn) (*mcp.CallToolResult, searchOut, error) {
-			return nil, s.search(ctx, ep, req.Extra.Header, in.Query), nil
+			out, err := s.search(ctx, ep, req.Extra.Header, in.Query)
+			return nil, out, err
 		})
 	mcp.AddTool(srv, &mcp.Tool{Name: "execute",
 		Description: "Run JavaScript that calls tools found with `search`, in a sandbox. Intermediate results stay in the sandbox; only the returned value and console.log lines come back."},
@@ -137,14 +138,14 @@ func (s *Server) endpointServer(ep *config.Endpoint) *mcp.Server {
 
 // tools lists every source's tools as this caller sees them, through the cache. Sources that
 // fail are named in unavailable; the others are still returned.
-func (s *Server) tools(ctx context.Context, ep *config.Endpoint, run *broker.Run, hdr http.Header) ([]typegen.Tool, []string) {
+func (s *Server) tools(ctx context.Context, ep *config.Endpoint, sources []config.Source, run *broker.Run, hdr http.Header) ([]typegen.Tool, []string) {
 	var (
 		mu          sync.Mutex
 		wg          sync.WaitGroup
 		tools       []typegen.Tool
 		unavailable []string
 	)
-	for _, src := range ep.Sources {
+	for _, src := range sources {
 		wg.Add(1)
 		go func(src config.Source) {
 			defer wg.Done()
@@ -178,12 +179,21 @@ func destructive(t *mcp.Tool) bool {
 	return a != nil && !a.ReadOnlyHint && a.DestructiveHint != nil && *a.DestructiveHint
 }
 
-func (s *Server) newRun(ep *config.Endpoint, inbound http.Header) (*broker.Run, http.Header) {
+// sourcesFor returns the endpoint's sources for this request: the configured list, or the
+// list the gateway put in the gateway_sources header.
+func sourcesFor(ep *config.Endpoint, inbound http.Header) ([]config.Source, error) {
+	if !ep.GatewaySources.Enabled() {
+		return ep.Sources, nil
+	}
+	return ep.GatewaySources.Parse(inbound.Get(ep.GatewaySources.Header))
+}
+
+func (s *Server) newRun(ep *config.Endpoint, inbound http.Header, sources []config.Source) (*broker.Run, http.Header) {
 	id := newRunID()
 	hdr := broker.OutboundHeaders(inbound, ep.Headers, id)
 	return broker.NewRun(broker.Options{
 		RunID:          id,
-		Sources:        ep.Sources,
+		Sources:        sources,
 		Headers:        hdr,
 		Transport:      s.transport,
 		Timeout:        ep.Limits.Timeout,
@@ -192,12 +202,17 @@ func (s *Server) newRun(ep *config.Endpoint, inbound http.Header) (*broker.Run, 
 	}), hdr
 }
 
-func (s *Server) search(ctx context.Context, ep *config.Endpoint, inbound http.Header, query string) searchOut {
-	run, hdr := s.newRun(ep, inbound)
+func (s *Server) search(ctx context.Context, ep *config.Endpoint, inbound http.Header, query string) (searchOut, error) {
+	sources, err := sourcesFor(ep, inbound)
+	if err != nil {
+		s.log.Warn("search refused", "endpoint", ep.Name, "error", err)
+		return searchOut{}, err
+	}
+	run, hdr := s.newRun(ep, inbound, sources)
 	defer run.Close()
 	ctx, cancel := context.WithTimeout(ctx, ep.Limits.Timeout)
 	defer cancel()
-	tools, unavailable := s.tools(ctx, ep, run, hdr)
+	tools, unavailable := s.tools(ctx, ep, sources, run, hdr)
 	words := strings.Fields(strings.ToLower(query))
 	var hits []typegen.Tool
 	for _, t := range tools {
@@ -211,12 +226,13 @@ func (s *Server) search(ctx context.Context, ep *config.Endpoint, inbound http.H
 		}
 	}
 	s.m.searches.WithLabelValues(ep.Name).Inc()
-	return searchOut{Declarations: typegen.Declarations(hits), Matches: len(hits), Unavailable: unavailable}
+	return searchOut{Declarations: typegen.Declarations(hits), Matches: len(hits), Unavailable: unavailable}, nil
 }
 
 func (s *Server) execute(ctx context.Context, ep *config.Endpoint, inbound http.Header, code string) (out executeOut) {
 	start := time.Now()
-	run, hdr := s.newRun(ep, inbound)
+	sources, srcErr := sourcesFor(ep, inbound)
+	run, hdr := s.newRun(ep, inbound, sources)
 	defer run.Close()
 	out = executeOut{RunID: run.ID(), Logs: []string{}, ToolCalls: []broker.CallRecord{}}
 	outcome := "ok"
@@ -230,6 +246,10 @@ func (s *Server) execute(ctx context.Context, ep *config.Endpoint, inbound http.
 			"tool_calls", len(out.ToolCalls), "code_bytes", len(code), "duration_ms", time.Since(start).Milliseconds())
 	}()
 
+	if srcErr != nil {
+		outcome, out.Error = "rejected", srcErr.Error()
+		return out
+	}
 	if len(code) > ep.Limits.MaxCodeBytes {
 		outcome, out.Error = "rejected", fmt.Sprintf("code is %d bytes; the limit is %d", len(code), ep.Limits.MaxCodeBytes)
 		return out
@@ -247,7 +267,7 @@ func (s *Server) execute(ctx context.Context, ep *config.Endpoint, inbound http.
 
 	ctx, cancel := context.WithTimeout(ctx, ep.Limits.Timeout)
 	defer cancel()
-	tools, _ := s.tools(ctx, ep, run, hdr)
+	tools, _ := s.tools(ctx, ep, sources, run, hdr)
 	byMethod := make(map[string]typegen.Tool, len(tools))
 	for _, t := range tools {
 		byMethod[t.Server+"."+t.Method] = t

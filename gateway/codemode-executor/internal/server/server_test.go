@@ -400,3 +400,56 @@ func metricsText(t *testing.T, base string) string {
 	}
 	return string(b)
 }
+
+// TestGatewaySources covers the mode the gateway names the sources in: the Code Mode proxy's
+// set-headers policy sends X-Codemode-Sources, and the executor joins the paths onto base_url.
+func TestGatewaySources(t *testing.T) {
+	gw, _, _ := lab(t)
+	cfg := cfgFor(gw, func(c *config.Config) {
+		c.Endpoints[0].Sources = nil
+		c.Endpoints[0].GatewaySources = config.GatewaySources{BaseURL: gw, Header: "X-Codemode-Sources", MaxSources: 10}
+	})
+	s := New(cfg, quiet())
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+	connect := func(hdr string) *mcp.ClientSession {
+		c := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0"}, nil)
+		hc := &http.Client{Transport: headerRT{"X-Codemode-Sources", hdr}}
+		sess, err := c.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: srv.URL + "/endpoints/ops/mcp", HTTPClient: hc, MaxRetries: -1, DisableStandaloneSSE: true}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { sess.Close() })
+		return sess
+	}
+	ok := connect("inv=/inventory/mcp,wx=/weather/mcp")
+	if out := search(t, ok, "forecast"); out.Matches != 1 || !strings.Contains(out.Declarations, "wx: {") {
+		t.Errorf("search with header sources: %+v", out)
+	}
+	out := execute(t, ok, `return (await codemode.inv.get_stock({sku:'SKU-1'})).qty;`)
+	if out.Result != float64(3) {
+		t.Errorf("execute with header sources: %#v %s", out.Result, out.Error)
+	}
+
+	missing := connect("")
+	res, err := missing.CallTool(context.Background(), &mcp.CallToolParams{Name: "search", Arguments: map[string]any{"query": ""}})
+	if err != nil || !res.IsError {
+		t.Errorf("search without the header should be a tool error: %v %+v", err, res)
+	}
+	if out := execute(t, missing, `return 1;`); !strings.Contains(out.Error, "X-Codemode-Sources header is missing") {
+		t.Errorf("execute without the header: %q", out.Error)
+	}
+	if out := execute(t, connect("inv=/inventory/../weather/mcp"), `return 1;`); !strings.Contains(out.Error, "bad path") {
+		t.Errorf("execute with a traversal path: %q", out.Error)
+	}
+}
+
+type headerRT struct{ name, value string }
+
+func (h headerRT) RoundTrip(r *http.Request) (*http.Response, error) {
+	r = r.Clone(r.Context())
+	if h.value != "" {
+		r.Header.Set(h.name, h.value)
+	}
+	return http.DefaultTransport.RoundTrip(r)
+}

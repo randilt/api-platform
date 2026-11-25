@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/knadh/koanf/parsers/toml/v2"
@@ -47,8 +48,64 @@ type Endpoint struct {
 	Name             string   `koanf:"name"`
 	AllowDestructive bool     `koanf:"allow_destructive"`
 	Sources          []Source `koanf:"sources"`
-	Limits           Limits   `koanf:"limits"`
-	Headers          Headers  `koanf:"headers"`
+	// GatewaySources, when its base_url is set, takes the endpoint's sources from a request
+	// header instead of Sources. Exactly one of the two is used.
+	GatewaySources GatewaySources `koanf:"gateway_sources"`
+	Limits         Limits         `koanf:"limits"`
+	Headers        Headers        `koanf:"headers"`
+}
+
+// GatewaySources lets the gateway name an endpoint's sources per request. The Code Mode Mcp
+// proxy sets Header (with the set-headers policy, which overwrites anything the client sent)
+// to "name=/path,name=/path"; each path is joined onto BaseURL, the gateway's own router. A
+// caller who forged the header could only reach routes on that router, with their own
+// credentials and through its policies, as they could by calling the routes directly.
+type GatewaySources struct {
+	BaseURL    string `koanf:"base_url"`
+	Header     string `koanf:"header"`
+	MaxSources int    `koanf:"max_sources"`
+}
+
+// Enabled reports whether the endpoint takes its sources from the header.
+func (g GatewaySources) Enabled() bool { return g.BaseURL != "" }
+
+// sourcePath is a plain absolute path: no scheme, host, query, fragment or percent-encoding.
+var sourcePath = regexp.MustCompile(`^/[A-Za-z0-9._~/-]{0,255}$`)
+
+// Parse reads the sources from the header's value. It fails closed: any malformed entry
+// rejects the whole value.
+func (g GatewaySources) Parse(value string) ([]Source, error) {
+	if strings.TrimSpace(value) == "" {
+		return nil, fmt.Errorf("the %s header is missing", g.Header)
+	}
+	parts := strings.Split(value, ",")
+	if len(parts) > g.MaxSources {
+		return nil, fmt.Errorf("the %s header names %d sources; the limit is %d", g.Header, len(parts), g.MaxSources)
+	}
+	base := strings.TrimSuffix(g.BaseURL, "/")
+	seen := map[string]bool{}
+	out := make([]Source, 0, len(parts))
+	for _, p := range parts {
+		name, path, ok := strings.Cut(strings.TrimSpace(p), "=")
+		if !ok || !sourceName.MatchString(name) || seen[name] {
+			return nil, fmt.Errorf("the %s header has a bad or repeated source name", g.Header)
+		}
+		if !sourcePath.MatchString(path) || strings.HasPrefix(path, "//") || hasDotSegment(path) {
+			return nil, fmt.Errorf("the %s header has a bad path for source %q", g.Header, name)
+		}
+		seen[name] = true
+		out = append(out, Source{Name: name, URL: base + path})
+	}
+	return out, nil
+}
+
+func hasDotSegment(p string) bool {
+	for _, seg := range strings.Split(p, "/") {
+		if seg == "." || seg == ".." {
+			return true
+		}
+	}
+	return false
 }
 
 // Source is one MCP server the endpoint exposes, reached through its gateway route.
@@ -151,8 +208,30 @@ func (c *Config) finish() error {
 }
 
 func (e *Endpoint) finish(maxMemory int64) error {
-	if len(e.Sources) == 0 {
-		return fmt.Errorf("needs at least one source")
+	if g := &e.GatewaySources; g.Enabled() {
+		if len(e.Sources) > 0 {
+			return fmt.Errorf("set either sources or gateway_sources, not both")
+		}
+		u, err := url.Parse(g.BaseURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil ||
+			strings.Trim(u.Path, "/") != "" || u.RawQuery != "" || u.Fragment != "" {
+			return fmt.Errorf("gateway_sources.base_url must be an http(s) origin such as http://gateway-runtime:8080")
+		}
+		if g.Header == "" {
+			g.Header = "X-Codemode-Sources"
+		}
+		if !headerName.MatchString(g.Header) {
+			return fmt.Errorf("gateway_sources.header %q is not a header name", g.Header)
+		}
+		g.Header = http.CanonicalHeaderKey(g.Header)
+		if g.MaxSources == 0 {
+			g.MaxSources = 10
+		}
+		if g.MaxSources < 1 || g.MaxSources > 100 {
+			return fmt.Errorf("gateway_sources.max_sources must be between 1 and 100")
+		}
+	} else if len(e.Sources) == 0 {
+		return fmt.Errorf("needs at least one source, or gateway_sources")
 	}
 	names := map[string]bool{}
 	for _, s := range e.Sources {
