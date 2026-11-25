@@ -666,3 +666,24 @@ blocks:
         tags: "gateway-version>=1.2.0"
         features:
           - features/ai-workspace-gateway/llm/llm_backend_timeout.feature
+
+  # Code Mode: the executor (gateway/codemode-executor) is a helper component no other block
+  # starts, and every Code Mode proxy in a scenario points at this block's executor. The executor
+  # takes its sources from the header each scenario's proxy sets, so scenarios share no state.
+  - name: codemode
+    parallel: 2
+    components:
+      - name: platform-gateway
+        overlay: tests/framework/core/catalog/overlays/gateway-core.toml
+        db:
+          matrix: [sqlite, postgres, sqlserver]
+      - name: testbench
+      - name: codemode-executor
+    wiring:
+      platform-gateway:
+        signingKeys: true
+    runners:
+      - name: codemode-search-execute
+        tags: "gateway-version>1.2.0"
+        features:
+          - features/gateway/codemode/codemode.feature

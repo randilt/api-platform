@@ -512,6 +512,9 @@ jobs:
       - name: Build A2A trip-planner image
         run: make -C tests/framework a2a-trip-planner
 
+      - name: Build Code Mode executor image
+        run: make -C tests/framework codemode-executor
+
       - name: Build ap CLI binary
         run: make -C tests/framework ap-cli
 

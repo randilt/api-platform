@@ -1,0 +1,129 @@
+# Scenario list: Code Mode (CODEMODE).
+#
+# A Code Mode MCP proxy gives an agent two tools, search and execute, in place of the tools of
+# several MCP proxies. search returns TypeScript declarations of the tools the caller may call;
+# execute runs the agent's JavaScript in a sandbox, and every tool call the script makes goes back
+# through the gateway to the member proxy, under that proxy's policies. The executor
+# (gateway/codemode-executor) runs behind an ordinary Mcp proxy whose set-headers policy names
+# the member proxies in X-Codemode-Sources.
+#
+# One entry per scenario, kept by hand. A scenario that automates an entry carries its ID
+# as a tag. Each layer (ui, it) records how it covers the ID:
+#   automated    the refs assert the expected result and run in CI
+#   known-issue  the refs assert it but carry @known-issue until `issue` is fixed
+#   exempt       the layer deliberately does not test the ID, for `reason`
+#   planned      not automated in this layer yet
+# Refs are feature paths relative to tests/framework plus the exact scenario name.
+code: CODEMODE
+title: Code Mode
+scenarios:
+  - id: CODEMODE-001
+    title: "Call search with an empty query on a Code Mode proxy over two MCP proxies, one with mcp-acl-list denying echo; it returns TypeScript declarations of every tool the caller may call, grouped by source, and echo is declared on the open source but absent from the guarded one."
+    priority: P0
+    ui:
+      status: exempt
+      reason: "Code Mode has no portal surface until M3 adds the Code Mode option to the MCP proxy in AI Workspace."
+    it:
+      status: automated
+      refs:
+        - feature: suites/it/features/gateway/codemode/codemode.feature
+          scenario: "search declares every tool the caller may call, grouped by source"
+  - id: CODEMODE-002
+    title: "Run a script with execute that calls tools on two sources and combines their results; the reply carries the returned value and the script's log lines, and lists each inner call as ok."
+    priority: P0
+    ui:
+      status: exempt
+      reason: "Code Mode has no portal surface until M3."
+    it:
+      status: automated
+      refs:
+        - feature: suites/it/features/gateway/codemode/codemode.feature
+          scenario: "A script combines tool results from two sources in one execute call"
+  - id: CODEMODE-003
+    title: "A script calls echo on the source whose mcp-acl-list denies it, by a computed name; the call fails inside the script with the policy's message 'MCP capability not allowed', while add on the same source succeeds in the same run."
+    priority: P0
+    ui:
+      status: exempt
+      reason: "Code Mode has no portal surface until M3."
+    it:
+      status: automated
+      refs:
+        - feature: suites/it/features/gateway/codemode/codemode.feature
+          scenario: "A tool the source's policy denies fails inside the script"
+  - id: CODEMODE-004
+    title: "A tool call that the tool answers with isError raises an exception the script catches, carrying the tool's message, while a valid call to the same tool succeeds."
+    priority: P1
+    ui:
+      status: exempt
+      reason: "Code Mode has no portal surface until M3."
+    it:
+      status: automated
+      refs:
+        - feature: suites/it/features/gateway/codemode/codemode.feature
+          scenario: "A tool error becomes an exception the script can catch"
+  - id: CODEMODE-005
+    title: "Every inner call carries the run id: the upstream MCP server receives X-Codemode-Run-Id equal to the runId the execute reply returns."
+    priority: P1
+    ui:
+      status: exempt
+      reason: "Code Mode has no portal surface until M3."
+    it:
+      status: automated
+      refs:
+        - feature: suites/it/features/gateway/codemode/codemode.feature
+          scenario: "The upstream receives the run id on every inner call"
+  - id: CODEMODE-006
+    title: "A script has no network and no file system: fetch is undefined, the sandbox root is empty, and /etc/passwd cannot be read."
+    priority: P0
+    ui:
+      status: exempt
+      reason: "Code Mode has no portal surface until M3."
+    it:
+      status: automated
+      refs:
+        - feature: suites/it/features/gateway/codemode/codemode.feature
+          scenario: "A script has no network and no file system"
+  - id: CODEMODE-007
+    title: "A script that never ends is stopped at the endpoint's wall-clock limit with an error, and the next execute call on the same proxy succeeds."
+    priority: P0
+    ui:
+      status: exempt
+      reason: "Code Mode has no portal surface until M3."
+    it:
+      status: automated
+      refs:
+        - feature: suites/it/features/gateway/codemode/codemode.feature
+          scenario: "A runaway script is stopped at the time limit"
+  - id: CODEMODE-008
+    title: "A script that allocates without bound ends with an out-of-memory error, and the next execute call on the same proxy succeeds."
+    priority: P0
+    ui:
+      status: exempt
+      reason: "Code Mode has no portal surface until M3."
+    it:
+      status: automated
+      refs:
+        - feature: suites/it/features/gateway/codemode/codemode.feature
+          scenario: "A script that exhausts memory is stopped"
+  - id: CODEMODE-009
+    title: "A client that sends its own X-Codemode-Sources header, naming the guarded proxy as 'open', does not change the sources: search still declares echo on open and lists the guarded source."
+    priority: P0
+    ui:
+      status: exempt
+      reason: "Code Mode has no portal surface until M3."
+    it:
+      status: automated
+      refs:
+        - feature: suites/it/features/gateway/codemode/codemode.feature
+          scenario: "A client cannot replace the sources the proxy names"
+  - id: CODEMODE-010
+    title: "A Code Mode proxy that does not set X-Codemode-Sources is refused by the executor: search answers isError with 'the X-Codemode-Sources header is missing', while the proxy that sets it answers."
+    priority: P1
+    ui:
+      status: exempt
+      reason: "Code Mode has no portal surface until M3."
+    it:
+      status: automated
+      refs:
+        - feature: suites/it/features/gateway/codemode/codemode.feature
+          scenario: "A Code Mode proxy that names no sources is refused"

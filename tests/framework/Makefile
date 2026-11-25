@@ -1,13 +1,14 @@
 # Build and run targets for the v2 integration framework.
 #
-# The testbench and A2A trip-planner images are rebuilt only when their source changes, which is
+# The testbench, A2A trip-planner and Code Mode executor images are rebuilt only when their source changes, which is
 # why each is a separate target rather than a test dependency. The test-api-portal* targets run
 # the API Portal blocks; the API Portal release workflow calls test-api-portal.
 
 TESTBENCH_IMAGE ?= ghcr.io/wso2/api-platform/testbench:test
 A2A_TRIP_PLANNER_IMAGE ?= ghcr.io/wso2/api-platform/a2a-trip-planner:test
+CODEMODE_EXECUTOR_IMAGE ?= ghcr.io/wso2/api-platform/codemode-executor:test
 
-.PHONY: help testbench a2a-trip-planner ap-cli coverage-report standards-check snapshots snapshots-check \
+.PHONY: help testbench a2a-trip-planner codemode-executor ap-cli coverage-report standards-check snapshots snapshots-check \
         test-api-portal test-api-portal-it test-api-portal-ui
 
 # API Portal blocks, run by the API Portal release (make test-api-portal). Keep these lists in
@@ -25,6 +26,9 @@ testbench: ## Build the testbench image (run after changing testbench/**)
 
 a2a-trip-planner: ## Build the A2A trip-planner agent image used as the Agent proxy upstream
 	docker build -t $(A2A_TRIP_PLANNER_IMAGE) ../mock-servers/a2a-trip-planner
+
+codemode-executor: ## Build the Code Mode executor image the codemode block runs (gateway/codemode-executor)
+	docker build -t $(CODEMODE_EXECUTOR_IMAGE) ../../gateway/codemode-executor
 
 ap-cli: ## Build the ap CLI binary the ai-workspace-cli block drives (lands at cli/src/build/ap)
 	$(MAKE) -C ../../cli/src build-skip-tests

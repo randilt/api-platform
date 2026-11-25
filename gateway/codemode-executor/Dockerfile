@@ -17,3 +17,4 @@ COPY configs/config.toml /etc/codemode/config.toml
 EXPOSE 7100 9100
 ENV HOME=/tmp
 USER 65532:65532
+CMD ["/executor", "-config", "/etc/codemode/config.toml"]
