@@ -239,6 +239,22 @@ func (s *Steps) assertCloudResponseContains(ctx context.Context, presence, want 
 	return nil
 }
 
+// assertCloudErrorMessage checks the message of the published error answer.
+func (s *Steps) assertCloudErrorMessage(ctx context.Context, want string) error {
+	response, err := httpx.Published(ctx)
+	if err != nil {
+		return err
+	}
+	message, err := stringField(response, "message")
+	if err != nil {
+		return fmt.Errorf("reading the error message: %w (%s)", err, response.Describe())
+	}
+	if message != want {
+		return fmt.Errorf("expected error message %q, got %q (%s)", want, message, response.Describe())
+	}
+	return nil
+}
+
 func (s *Steps) assertCloudErrorCode(ctx context.Context, want string) error {
 	response, err := httpx.Published(ctx)
 	if err != nil {
