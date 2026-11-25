@@ -151,7 +151,7 @@ var (
 		MaxToolResultBytes: 1 << 20,
 	}
 	defaults = Config{
-		Server:  Server{Address: ":7100", OpsAddress: ":9100", MaxConcurrentRuns: 16, MaxRequestBytes: 1 << 20},
+		Server:  Server{Address: ":7100", OpsAddress: ":9100", MaxConcurrentRuns: 8, MaxRequestBytes: 1 << 20},
 		Sandbox: Sandbox{RootDir: "/sandbox-root", MaxMemoryBytes: 64 << 20},
 		Catalog: Catalog{TTL: 60 * time.Second, MaxTTL: time.Hour, MaxEntries: 1000},
 	}

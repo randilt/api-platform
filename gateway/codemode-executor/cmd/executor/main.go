@@ -11,10 +11,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
 	"github.com/wso2/api-platform/gateway/codemode-executor/internal/config"
+	"github.com/wso2/api-platform/gateway/codemode-executor/internal/memlimit"
 	"github.com/wso2/api-platform/gateway/codemode-executor/internal/sandbox"
 	"github.com/wso2/api-platform/gateway/codemode-executor/internal/server"
 )
@@ -33,6 +35,17 @@ func run(path string, log *slog.Logger) error {
 	cfg, err := config.Load(path)
 	if err != nil {
 		return err
+	}
+	if limit, ok := memlimit.Container(); ok {
+		if err := memlimit.Check(limit, cfg.Server.MaxConcurrentRuns, cfg.Sandbox.MaxMemoryBytes); err != nil {
+			return err
+		}
+		if os.Getenv("GOMEMLIMIT") == "" {
+			debug.SetMemoryLimit(memlimit.GoLimit(limit))
+		}
+		log.Info("memory", "container_limit_mib", limit>>20, "go_limit_mib", debug.SetMemoryLimit(-1)>>20)
+	} else {
+		log.Warn("no container memory limit found; size it at 128 MiB + max_concurrent_runs × sandbox.max_memory_bytes")
 	}
 	start := time.Now()
 	if err := sandbox.Init(cfg.Sandbox.MaxMemoryBytes, cfg.Sandbox.RootDir); err != nil {

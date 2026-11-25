@@ -30,7 +30,7 @@ func TestDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Server.Address != ":7100" || cfg.Server.MaxConcurrentRuns != 16 || cfg.Catalog.TTL != time.Minute {
+	if cfg.Server.Address != ":7100" || cfg.Server.MaxConcurrentRuns != 8 || cfg.Catalog.TTL != time.Minute {
 		t.Errorf("server/catalog defaults not applied: %+v %+v", cfg.Server, cfg.Catalog)
 	}
 	l := cfg.Endpoints[0].Limits
