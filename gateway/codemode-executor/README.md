@@ -1,42 +1,62 @@
-# Code Mode spike for the WSO2 AI gateway
+# Code Mode executor
 
-Throwaway prototype backing the "Code Mode on the WSO2 AI Gateway" doc. It proves that a Code Mode
-executor behind an ordinary `kind: Mcp` proxy works on a stock gateway, with every inner tool call
-going back through the gateway's policy chain.
+An MCP server that gives an agent two tools, `search` and `execute`, in place of a gateway's whole
+tool list. `search` returns TypeScript declarations for the tools the caller may use; `execute`
+runs model-written JavaScript in a QuickJS sandbox, and every tool call the script makes goes back
+through the gateway as an ordinary MCP `tools/call`, so the gateway's policies (ACLs, authz, rate
+limits, guardrails) apply to each one.
 
-## What is here
+It runs as its own component behind an ordinary `Mcp` proxy; no gateway change is needed. The
+design and milestones are in the "Code Mode on the WSO2 AI Gateway" proposal.
+
+## Layout
 
 | Path | What |
 | --- | --- |
-| `cmd/executor` | MCP server with `search` and `execute`. Builds TypeScript declarations from `tools/list` of each source (fetched through the gateway), runs model JS in QuickJS-NG on wazero, brokers each inner call as a `tools/call` back through the gateway |
-| `cmd/toolserver` | Test MCP servers: `inventory` (`list_items`, `get_stock`, `delete_item`) and `weather` (`get_forecast`) |
-| `cmd/client` | Drives the 7 scenarios through the gateway and prints results |
-| `cmd/memtest` | Isolated test of the QuickJS memory limit |
-| `deploy/*.yaml` | The three `Mcp` proxies (`/inventory` with `mcp-acl-list` denying `delete_item`, `/weather`, `/codemode`) |
-| `qjs-memory-cap.patch` | One-line patch to `fastschema/qjs` v0.0.6: cap wasm linear memory with wazero `WithMemoryLimitPages` |
+| `cmd/executor` | The executor: loads the config, serves MCP and ops, drains on SIGTERM |
+| `internal/config` | TOML config (koanf), defaults and fail-closed validation |
+| `internal/typegen` | JSON Schema 2020-12 → TypeScript declarations; unique JS method names |
+| `internal/sandbox` | One fresh QuickJS-on-wazero runtime per run: empty root, timeout, memory cap |
+| `internal/broker` | MCP sessions to each source per run, identity and run id on every hop |
+| `internal/catalog` | `tools/list` cache per source and caller credential |
+| `internal/server` | `/endpoints/{name}/mcp` (`search`, `execute`) and the ops handler |
+| `configs/config.toml` | Example config with every default; baked into the image |
+| `third_party/qjs` | `fastschema/qjs` v0.0.6 (MIT), vendored with our patches (`qjs-memory-cap.patch`) |
+| `cmd/toolserver`, `cmd/client`, `deploy/` | Test MCP servers, the scenario client and the lab's `Mcp` proxies |
 
-`third_party/qjs` is `fastschema/qjs` v0.0.6 (MIT) with `qjs-memory-cap.patch` applied; `go.mod`
-replaces the module with it. Drop the replace line to see the unpatched behaviour (an allocation
-loop gets the process OOM-killed). It goes away once the cap is upstream or in a fork (M1).
+## Configure
 
-## Run it
+Each `[[endpoints]]` block is one Code Mode MCP server at `/endpoints/<name>/mcp`. Its sources
+are `Mcp` proxy routes on the gateway; scripts call them as `codemode.<source>.<method>(args)`.
+Point an `Mcp` proxy's upstream at `http://<executor>:7100/endpoints/<name>/mcp` (the upstream
+URL must include the path). See `configs/config.toml` for limits and header mapping.
 
-1. Gateway: in a copy of `wso2/api-platform/gateway`, run `./scripts/setup.sh`, then
-   `docker compose up -d gateway-controller gateway-runtime` (images `2026.09.24` were used).
-2. Build the image from this directory: `docker build -t codemode-spike .` (executor and toolserver
-   binaries, empty `/sandbox-root`, non-root user). Build the client with `go build -o bin/ ./cmd/client`.
-3. Start `inventory`, `weather` (`/toolserver -name ... -addr :7000`) and `codemode` (`/executor`)
-   on the compose network. Executor env:
-   `CODEMODE_SOURCES="inventory=http://gateway-runtime:8080/inventory/mcp;weather=http://gateway-runtime:8080/weather/mcp"`.
-4. Deploy the proxies: `POST http://localhost:9090/api/management/v1/mcp-proxies` with each YAML
-   (basic auth, admin password from setup). Upstream URLs must include `/mcp`.
-5. `./bin/client`
+## Run
 
-## Gotchas found
+```sh
+docker build -t codemode-executor .
+docker run -p 7100:7100 -p 9100:9100 -v $PWD/my-config.toml:/etc/codemode/config.toml codemode-executor /executor
+```
 
-- `qjs` ignores `MaxExecutionTime`; use a Go context with `CloseOnContextDone`.
-- On deadline `qjs` panics; recover around the run and around `Close`, or one script kills the executor.
-- `qjs` mounts `CWD` as `/` and exposes `qjs:std` / `qjs:os`; point `CWD` at an empty directory.
-- QuickJS `MemoryLimit` alone did not protect the host at 16 MB and above; the wasm page cap does.
-- Gateway `2026.09.24` answers an `mcp-acl-list` denial with `"id": null`; the executor restores the id.
-- After an executor restart Envoy returned 503 for a few seconds.
+`GET :9100/healthz` and `GET :9100/metrics` (`codemode_runs_total`, `codemode_run_duration_seconds`,
+`codemode_inner_calls_total`, `codemode_sandbox_errors_total`, `codemode_searches_total`,
+`codemode_runs_in_flight`). Logs are JSON with the run id.
+
+## Test
+
+```sh
+go test ./...          # -short runs 50 instead of 1,000 runaway scripts in the sandbox test
+go test ./internal/typegen -update   # rewrite the golden declarations
+```
+
+## Things to know
+
+- `qjs` caches its wazero config from the first `qjs.New`, including `CloseOnContextDone`;
+  `sandbox.Init` sets it, or no deadline would ever stop a busy loop.
+- `qjs` panics instead of returning an error when a deadline closes the module; every run and
+  close is wrapped in `recover()`.
+- QuickJS's own memory limit did not protect the host at 16 MB and above; the wasm page cap does.
+- `qjs` mounts the sandbox root as `/` and exposes `qjs:std`/`qjs:os`; the executor refuses to
+  start unless the root is an empty directory.
+- The gateway answers a policy denial with HTTP 400 and a JSON-RPC error; the MCP Go SDK drops 4xx
+  bodies, so the broker turns that response into the JSON-RPC error the script sees.

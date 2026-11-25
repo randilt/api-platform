@@ -1,0 +1,48 @@
+# Code Mode executor configuration. Every value shown is the default unless marked otherwise.
+
+[server]
+address = ":7100"            # MCP listener: /endpoints/{name}/mcp
+ops_address = ":9100"        # /healthz and /metrics
+max_concurrent_runs = 16     # execute calls past this are refused at once, never queued
+max_request_bytes = 1048576
+
+[sandbox]
+root_dir = "/sandbox-root"   # must be an empty directory; the executor refuses to start otherwise
+max_memory_bytes = 67108864  # hard WebAssembly memory cap per run (64 MiB)
+
+[catalog]
+ttl = "60s"                  # how long a caller's tools/list is cached when the server sends no TTL
+max_ttl = "1h"               # ceiling on a server-sent TTL
+max_entries = 1000
+
+# One [[endpoints]] block per Code Mode MCP server. Point an Mcp proxy's upstream at
+# http://<executor>:7100/endpoints/<name>/mcp. (Example values, not defaults.)
+[[endpoints]]
+name = "ops"
+allow_destructive = false    # refuse tools whose destructiveHint is true
+
+[endpoints.limits]
+timeout = "10s"
+memory_bytes = 33554432      # QuickJS heap limit, below sandbox.max_memory_bytes
+max_tool_calls = 50
+max_code_bytes = 65536
+max_output_bytes = 16384
+max_tool_result_bytes = 1048576
+
+# Inbound headers that travel on every inner call. Map copies one under another name, e.g. the
+# gateway's backend JWT into Authorization for the member routes.
+[endpoints.headers]
+forward = []
+# [[endpoints.headers.map]]
+# from = "x-jwt-assertion"
+# to = "authorization"
+# prefix = "Bearer "
+
+# Each source is an Mcp proxy route on the gateway; scripts call it as codemode.<name>.
+[[endpoints.sources]]
+name = "inventory"
+url = "http://gateway-runtime:8080/inventory/mcp"
+
+[[endpoints.sources]]
+name = "weather"
+url = "http://gateway-runtime:8080/weather/mcp"

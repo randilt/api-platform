@@ -245,7 +245,7 @@ func (r *Run) Refuse(source, tool, reason string) error {
 func (r *Run) Calls() []CallRecord {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return append([]CallRecord(nil), r.calls...)
+	return append([]CallRecord{}, r.calls...) // [] not null in the JSON result
 }
 
 // Close ends every session the run opened.

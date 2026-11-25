@@ -13,5 +13,7 @@ FROM scratch
 COPY --from=builder --chown=65532:65532 /out/sandbox-root /sandbox-root
 COPY --from=builder /out/tmp /tmp
 COPY --from=builder /out/executor /out/toolserver /
+COPY configs/config.toml /etc/codemode/config.toml
+EXPOSE 7100 9100
 ENV HOME=/tmp
 USER 65532:65532

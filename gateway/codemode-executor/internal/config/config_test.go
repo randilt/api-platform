@@ -99,8 +99,8 @@ func TestRejects(t *testing.T) {
 		"memory above cap": "[[endpoints]]\nname = \"a\"\n[endpoints.limits]\nmemory_bytes = 134217728\n" + src,
 		"timeout too long": "[[endpoints]]\nname = \"a\"\n[endpoints.limits]\ntimeout = \"1h\"\n" + src,
 		"negative limit":   "[[endpoints]]\nname = \"a\"\n[endpoints.limits]\nmax_tool_calls = -1\n" + src,
-		"bad header": "[[endpoints]]\nname = \"a\"\n[endpoints.headers]\nforward = [\"bad header\"]\n" + src,
-		"zero runs":  "[server]\nmax_concurrent_runs = 0\n[[endpoints]]\nname = \"a\"\n" + src,
+		"bad header":       "[[endpoints]]\nname = \"a\"\n[endpoints.headers]\nforward = [\"bad header\"]\n" + src,
+		"zero runs":        "[server]\nmax_concurrent_runs = 0\n[[endpoints]]\nname = \"a\"\n" + src,
 	}
 	for name, toml := range cases {
 		t.Run(name, func(t *testing.T) {

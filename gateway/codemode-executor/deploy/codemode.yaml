@@ -10,4 +10,4 @@ spec:
   context: /codemode
   specVersion: "2025-06-18"
   upstream:
-    url: http://codemode:7100/mcp
+    url: http://codemode:7100/endpoints/ops/mcp
