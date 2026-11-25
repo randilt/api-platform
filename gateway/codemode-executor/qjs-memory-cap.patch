@@ -1,0 +1,21 @@
+--- /root/go/pkg/mod/github.com/fastschema/qjs@v0.0.6/runtime.go	2026-11-24 08:56:10.512656070 +0530
++++ third_party/qjs/runtime.go	2026-11-24 09:04:08.489280709 +0530
+@@ -69,7 +69,8 @@
+ 		cachedRuntimeConfig = wazero.
+ 			NewRuntimeConfig().
+ 			WithCompilationCache(cache).
+-			WithCloseOnContextDone(closeOnContextDone)
++			WithCloseOnContextDone(closeOnContextDone).
++			WithMemoryLimitPages(MemoryLimitPages) // hard cap on wasm linear memory (64KiB pages)
+ 		wrt := wazero.NewRuntimeWithConfig(ctx, cachedRuntimeConfig)
+ 
+ 		if compiledQJSModule, err = wrt.CompileModule(ctx, qjsBytes); err != nil {
+@@ -429,3 +430,8 @@
+ 
+ 	return rt, nil
+ }
++
++// MemoryLimitPages caps the WebAssembly linear memory of every runtime (64 KiB pages).
++// Patched in for the Code Mode spike: QuickJS's own MemoryLimit was not enough to stop the
++// host process from being OOM-killed. Must be set before the first runtime is created.
++var MemoryLimitPages uint32 = 1024 // 64 MiB

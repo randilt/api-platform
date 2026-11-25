@@ -1,0 +1,19 @@
+apiVersion: gateway.api-platform.wso2.com/v1
+kind: Mcp
+metadata:
+  name: inventory-mcp-v1
+spec:
+  displayName: Inventory
+  version: v1
+  context: /inventory
+  specVersion: "2025-06-18"
+  upstream:
+    url: http://inventory:7000/mcp
+  policies:
+    - name: mcp-acl-list
+      version: v1
+      params:
+        tools:
+          mode: allow
+          exceptions:
+            - delete_item

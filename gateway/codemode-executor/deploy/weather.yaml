@@ -1,0 +1,11 @@
+apiVersion: gateway.api-platform.wso2.com/v1
+kind: Mcp
+metadata:
+  name: weather-mcp-v1
+spec:
+  displayName: Weather
+  version: v1
+  context: /weather
+  specVersion: "2025-06-18"
+  upstream:
+    url: http://weather:7000/mcp
