@@ -1420,3 +1420,65 @@ gateway:
       # Maximum number of pods that may be unavailable during a disruption.
       # Accepts an integer or a percentage string (e.g. "25%").
       maxUnavailable: ""
+
+  # Code Mode executor (gateway/codemode-executor): an MCP server with search and execute tools
+  # that lets an agent script the tools of several MCP proxies. It runs behind an ordinary Mcp
+  # proxy whose upstream is http://<release>-codemode-executor:7100/endpoints/<name>/mcp, and
+  # every tool call a script makes goes back through the gateway runtime. Disabled by default.
+  codeModeExecutor:
+    enabled: false
+    image:
+      repository: ghcr.io/wso2/api-platform/codemode-executor
+      tag: "2026.09.24"
+      pullPolicy: IfNotPresent
+    imagePullSecrets: []
+    # Two replicas, a readiness probe on /healthz and shutdownDelay keep a rolling update or a
+    # node drain from leaving the gateway without a ready executor.
+    replicaCount: 2
+    strategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    # Keep serving this long after SIGTERM while /healthz reports 503, so the Service stops
+    # routing to the pod before its listener closes.
+    shutdownDelay: 5s
+    # Must cover shutdownDelay, the longest run (an endpoint's limits.timeout) and the reply.
+    terminationGracePeriodSeconds: 30
+    # Executor TOML (see gateway/codemode-executor/configs/config.toml). Empty renders one endpoint,
+    # "default", whose sources come from the X-Codemode-Sources header that a Code Mode proxy's
+    # set-headers policy sets, joined onto this release's gateway-runtime Service.
+    config: ""
+    service:
+      ports:
+        mcp: 7100
+        ops: 9100
+      annotations: {}
+      labels: {}
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 512Mi
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: ["ALL"]
+    podLabels: {}
+    podAnnotations: {}
+    nodeSelector: {}
+    affinity: {}
+    tolerations: []
+    topologySpreadConstraints: []

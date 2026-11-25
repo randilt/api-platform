@@ -1,0 +1,27 @@
+{{- $cm := .Values.gateway.codeModeExecutor -}}
+{{- if $cm.enabled }}
+# ClusterIP only: the executor is reached by the gateway runtime, never from outside the cluster.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "gateway-operator.fullname" . }}-codemode-executor
+  labels:
+    {{- include "gateway-operator.componentLabels" (list . "codemode-executor" $cm.service.labels) | nindent 4 }}
+  {{- with (include "gateway-operator.annotations" (list . $cm.service.annotations)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ $cm.service.ports.mcp }}
+      targetPort: mcp
+      protocol: TCP
+      name: mcp
+    - port: {{ $cm.service.ports.ops }}
+      targetPort: ops
+      protocol: TCP
+      name: ops
+  selector:
+    {{- include "gateway-operator.componentSelectorLabels" (list . "codemode-executor") | nindent 4 }}
+{{- end }}

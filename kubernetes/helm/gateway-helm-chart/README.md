@@ -154,8 +154,9 @@ kubectl logs -l app.kubernetes.io/component=gateway-runtime
 helm-chart/
 ├── templates/
 │   ├── gateway/
-│   │   ├── controller/       # Deployment, Service, ConfigMap, PVC, Route
-│   │   └── gateway-runtime/  # Deployment, Service
+│   │   ├── controller/         # Deployment, Service, ConfigMap, PVC, Route
+│   │   ├── gateway-runtime/    # Deployment, Service
+│   │   └── codemode-executor/  # Deployment, Service, ConfigMap, PDB (off by default)
 │   ├── serviceaccount.yaml
 │   └── _helpers.tpl
 ├── values.yaml
@@ -446,6 +447,37 @@ Notes:
 - Prefer the individual `host`/`port`/`database`/`user` fields over `dsn`: a DSN is rendered
   verbatim into the ConfigMap, so an embedded password would be stored in plaintext instead of
   being injected from the Secret above.
+
+## Code Mode Executor (Optional)
+
+The Code Mode executor gives an agent two MCP tools, `search` and `execute`, over the tools of
+several MCP proxies; every tool call a script makes goes back through the gateway runtime. It is
+off by default:
+
+```bash
+helm upgrade --install gateway . --set gateway.codeModeExecutor.enabled=true
+```
+
+With the default `config`, the executor serves one endpoint, `default`, and takes its sources
+from the `X-Codemode-Sources` header. Deploy an `Mcp` proxy whose upstream is
+`http://<release>-codemode-executor:7100/endpoints/default/mcp` and attach `set-headers` to it,
+naming the member proxies by context:
+
+```yaml
+policies:
+  - name: set-headers
+    version: v1
+    params:
+      request:
+        headers:
+          - name: X-Codemode-Sources
+            value: "inventory=/inventory/mcp,weather=/weather/mcp"
+```
+
+Two replicas, a `/healthz` readiness probe, `maxUnavailable: 0` and `shutdownDelay` keep a
+rolling update from leaving the gateway without a ready executor. The Service is ClusterIP only.
+Set `gateway.codeModeExecutor.config` to your own TOML (see
+`gateway/codemode-executor/configs/config.toml`) for fixed sources, limits or header mapping.
 
 ## At-rest Encryption (Required)
 

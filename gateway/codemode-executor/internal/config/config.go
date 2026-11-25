@@ -28,6 +28,9 @@ type Server struct {
 	OpsAddress        string `koanf:"ops_address"`         // /healthz and /metrics
 	MaxConcurrentRuns int    `koanf:"max_concurrent_runs"` // execute calls past this are refused at once
 	MaxRequestBytes   int64  `koanf:"max_request_bytes"`
+	// ShutdownDelay keeps serving after SIGTERM while /healthz reports 503, so a load balancer
+	// or Kubernetes Service stops sending new calls before the listener closes.
+	ShutdownDelay time.Duration `koanf:"shutdown_delay"`
 }
 
 // Sandbox holds settings shared by every run.
@@ -177,6 +180,9 @@ func Load(path string) (Config, error) {
 func (c *Config) finish() error {
 	if c.Server.Address == "" || c.Server.OpsAddress == "" {
 		return fmt.Errorf("server.address and server.ops_address are required")
+	}
+	if c.Server.ShutdownDelay < 0 || c.Server.ShutdownDelay > time.Minute {
+		return fmt.Errorf("server.shutdown_delay must be between 0 and 1m")
 	}
 	if c.Server.MaxConcurrentRuns < 1 || c.Server.MaxRequestBytes < 1 {
 		return fmt.Errorf("server.max_concurrent_runs and server.max_request_bytes must be positive")

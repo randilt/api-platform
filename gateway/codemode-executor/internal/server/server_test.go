@@ -383,6 +383,15 @@ func TestOpsEndpoints(t *testing.T) {
 	if out := execute(t, client(t, s, "ops"), `return 1;`); out.ToolCalls == nil {
 		t.Error("toolCalls must be [] when the script made no calls")
 	}
+	s.Drain()
+	if resp, err := http.Get(ops.URL + "/healthz"); err != nil || resp.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("healthz while draining: %v %v", err, resp)
+	} else {
+		resp.Body.Close()
+	}
+	if out := execute(t, client(t, s, "ops"), `return 'served';`); out.Result != "served" {
+		t.Errorf("a draining executor must still serve: %#v %s", out.Result, out.Error)
+	}
 	if !strings.Contains(metricsText(t, ops.URL), `codemode_inner_calls_total{endpoint="ops",outcome="ok"} 1`) {
 		t.Error("inner call not counted")
 	}

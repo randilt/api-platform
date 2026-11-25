@@ -1,0 +1,32 @@
+{{- $cm := .Values.gateway.codeModeExecutor -}}
+{{- if $cm.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "gateway-operator.fullname" . }}-codemode-executor
+  labels:
+    {{- include "gateway-operator.componentLabels" (list . "codemode-executor" dict) | nindent 4 }}
+  {{- with (include "gateway-operator.annotations" (list . dict)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+data:
+  config.toml: |
+{{- if $cm.config }}
+    {{- $cm.config | nindent 4 }}
+{{- else }}
+    [server]
+    address = ":{{ $cm.service.ports.mcp }}"
+    ops_address = ":{{ $cm.service.ports.ops }}"
+    shutdown_delay = {{ $cm.shutdownDelay | quote }}
+
+    [sandbox]
+    root_dir = "/sandbox-root"
+
+    [[endpoints]]
+    name = "default"
+
+    [endpoints.gateway_sources]
+    base_url = "http://{{ include "gateway-operator.fullname" . }}-gateway-runtime:{{ .Values.gateway.gatewayRuntime.service.ports.http }}"
+{{- end }}
+{{- end }}

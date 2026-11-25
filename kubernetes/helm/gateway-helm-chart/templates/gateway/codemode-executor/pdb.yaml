@@ -1,0 +1,25 @@
+{{- $cm := .Values.gateway.codeModeExecutor -}}
+{{- $pdb := $cm.podDisruptionBudget -}}
+{{- if and $cm.enabled $pdb.enabled }}
+{{- if and $pdb.minAvailable $pdb.maxUnavailable }}
+{{- fail "gateway.codeModeExecutor.podDisruptionBudget: only one of minAvailable or maxUnavailable may be set" }}
+{{- end }}
+{{- if not (or $pdb.minAvailable $pdb.maxUnavailable) }}
+{{- fail "gateway.codeModeExecutor.podDisruptionBudget: one of minAvailable or maxUnavailable must be set" }}
+{{- end }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "gateway-operator.fullname" . }}-codemode-executor
+  labels:
+    {{- include "gateway-operator.componentLabels" (list . "codemode-executor" dict) | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "gateway-operator.componentSelectorLabels" (list . "codemode-executor") | nindent 6 }}
+  {{- if $pdb.minAvailable }}
+  minAvailable: {{ $pdb.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ $pdb.maxUnavailable }}
+  {{- end }}
+{{- end }}

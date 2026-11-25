@@ -5,6 +5,7 @@ address = ":7100"            # MCP listener: /endpoints/{name}/mcp
 ops_address = ":9100"        # /healthz and /metrics
 max_concurrent_runs = 16     # execute calls past this are refused at once, never queued
 max_request_bytes = 1048576
+shutdown_delay = "0s"        # keep serving this long after SIGTERM while /healthz reports 503
 
 [sandbox]
 root_dir = "/sandbox-root"   # must be an empty directory; the executor refuses to start otherwise

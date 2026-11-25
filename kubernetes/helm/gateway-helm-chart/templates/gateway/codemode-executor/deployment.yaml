@@ -1,0 +1,105 @@
+{{- $cm := .Values.gateway.codeModeExecutor -}}
+{{- if $cm.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gateway-operator.fullname" . }}-codemode-executor
+  labels:
+    {{- include "gateway-operator.componentLabels" (list . "codemode-executor" dict) | nindent 4 }}
+  {{- with (include "gateway-operator.annotations" (list . dict)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ $cm.replicaCount }}
+  {{- with $cm.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "gateway-operator.componentSelectorLabels" (list . "codemode-executor") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gateway-operator.componentPodLabels" (list . "codemode-executor" $cm.podLabels) | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/gateway/codemode-executor/configmap.yaml") . | sha256sum }}
+        {{- with $cm.podAnnotations }}
+        {{- include "gateway-operator.renderStringMap" . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "gateway-operator.serviceAccountName" . }}
+      # The executor calls only the gateway runtime and needs no Kubernetes API access.
+      automountServiceAccountToken: false
+      {{- with (include "gateway-operator.componentImagePullSecretsBlock" (dict "root" . "componentPullSecrets" $cm.imagePullSecrets)) }}
+      {{- . | nindent 6 }}
+      {{- end }}
+      {{- with $cm.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ $cm.terminationGracePeriodSeconds }}
+      {{- with $cm.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $cm.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $cm.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $cm.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: codemode-executor
+          image: {{ include "gateway-operator.componentImage" (dict "root" . "repository" $cm.image.repository "defaultRepository" "ghcr.io/wso2/api-platform/codemode-executor" "tag" $cm.image.tag) | quote }}
+          imagePullPolicy: {{ $cm.image.pullPolicy }}
+          args: ["/executor", "-config", "/etc/codemode/config.toml"]
+          {{- with $cm.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: mcp
+              containerPort: {{ $cm.service.ports.mcp }}
+              protocol: TCP
+            - name: ops
+              containerPort: {{ $cm.service.ports.ops }}
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: ops
+            periodSeconds: 2
+            failureThreshold: 1
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: ops
+            periodSeconds: 10
+            # A draining pod answers 503 on purpose; give it the whole grace period.
+            failureThreshold: 6
+          {{- with $cm.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/codemode
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "gateway-operator.fullname" . }}-codemode-executor
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+{{- end }}

@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -39,7 +40,12 @@ type Server struct {
 	servers   map[string]*mcp.Server
 	mcp       http.Handler
 	reg       *prometheus.Registry
+	draining  atomic.Bool
 }
+
+// Drain makes /healthz report 503 so callers stop sending new work; running and new calls
+// are still served until the listener is shut down.
+func (s *Server) Drain() { s.draining.Store(true) }
 
 // New builds the server. sandbox.Init must have been called.
 func New(cfg config.Config, log *slog.Logger) *Server {
@@ -90,6 +96,11 @@ func (s *Server) OpsHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
+		if s.draining.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("draining\n"))
+			return
+		}
 		_, _ = w.Write([]byte("ok\n"))
 	})
 	mux.Handle("GET /metrics", promhttp.HandlerFor(s.reg, promhttp.HandlerOpts{}))

@@ -70,8 +70,10 @@ func run(path string, log *slog.Logger) error {
 	case err := <-errs:
 		return err
 	case sig := <-stop:
-		log.Info("draining", "signal", sig.String())
+		log.Info("draining", "signal", sig.String(), "delay", cfg.Server.ShutdownDelay.String())
 	}
+	srv.Drain()
+	time.Sleep(cfg.Server.ShutdownDelay)
 	// Let running scripts finish: the longest run plus slack for the reply.
 	ctx, cancel := context.WithTimeout(context.Background(), longest+5*time.Second)
 	defer cancel()
