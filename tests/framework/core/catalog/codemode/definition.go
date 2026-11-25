@@ -50,7 +50,7 @@ const config = `
 [server]
 address = ":7100"
 ops_address = ":9100"
-max_concurrent_runs = 16
+max_concurrent_runs = 4
 
 [sandbox]
 root_dir = "/sandbox-root"

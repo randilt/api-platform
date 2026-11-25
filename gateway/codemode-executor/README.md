@@ -20,7 +20,7 @@ design and milestones are in the "Code Mode on the WSO2 AI Gateway" proposal.
 | `internal/broker` | MCP sessions to each source per run, identity and run id on every hop |
 | `internal/catalog` | `tools/list` cache per source and caller credential |
 | `internal/server` | `/endpoints/{name}/mcp` (`search`, `execute`) and the ops handler |
-| `configs/config.toml` | Example config with every default; baked into the image |
+| `configs/config.toml` | The image's default config (one `default` endpoint, sources from the gateway); every setting documented |
 | `third_party/qjs` | `fastschema/qjs` v0.0.6 (MIT), vendored with our patches (`qjs-memory-cap.patch`) |
 | `cmd/toolserver`, `cmd/client`, `deploy/` | Test MCP servers, the scenario client and the lab's `Mcp` proxies |
 
@@ -33,10 +33,29 @@ URL must include the path). See `configs/config.toml` for limits and header mapp
 
 ## Run
 
+Next to the gateway, with its compose file (the service is in the `codemode` profile, so a plain
+`docker compose up` leaves it out):
+
 ```sh
-docker build -t codemode-executor .
-docker run -p 7100:7100 -p 9100:9100 -v $PWD/my-config.toml:/etc/codemode/config.toml codemode-executor /executor
+cd gateway && docker compose --profile codemode up -d
 ```
+
+The image's built-in config serves one endpoint, `default`, whose sources come from the
+`X-Codemode-Sources` header. Deploy the Code Mode proxy like `deploy/codemode.yaml`: upstream
+`http://codemode-executor:7100/endpoints/default/mcp`, and a `set-headers` policy naming the member
+proxies by context (`inventory=/inventory/mcp,weather=/weather/mcp`). In Kubernetes, set
+`gateway.codeModeExecutor.enabled=true` in the gateway Helm chart.
+
+On its own, with your own config:
+
+```sh
+make build   # ghcr.io/wso2/api-platform/codemode-executor:<gateway VERSION>
+docker run -p 7100:7100 -p 9100:9100 -v $PWD/my-config.toml:/etc/codemode/config.toml \
+  ghcr.io/wso2/api-platform/codemode-executor:latest
+```
+
+The image is built and pushed with the gateway release (`make -C gateway build-and-push-multiarch`),
+and `make -C gateway version-set` moves its tag in the compose files and the Helm chart.
 
 `GET :9100/healthz` and `GET :9100/metrics` (`codemode_runs_total`, `codemode_run_duration_seconds`,
 `codemode_inner_calls_total`, `codemode_sandbox_errors_total`, `codemode_searches_total`,

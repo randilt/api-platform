@@ -75,6 +75,7 @@ elif [ "$COMPONENT" = "gateway" ]; then
     sed -i.bak \
         -e "s|image: .*/gateway-controller:.*|image: ${DOCKER_REGISTRY}/gateway-controller:$VERSION|" \
         -e "s|image: .*/gateway-runtime:.*|image: ${DOCKER_REGISTRY}/gateway-runtime:$VERSION|" \
+        -e "s|image: .*/codemode-executor:.*|image: ${DOCKER_REGISTRY}/codemode-executor:$VERSION|" \
         "$COMPOSE_FILE"
     rm -f "$COMPOSE_FILE.bak"
     echo "Updated $COMPOSE_FILE with gateway version $VERSION"
@@ -83,6 +84,7 @@ elif [ "$COMPONENT" = "gateway" ]; then
         sed -i.bak \
             -e "s|image: .*/gateway-controller:.*|image: ${DOCKER_REGISTRY}/gateway-controller:$VERSION|" \
             -e "s|image: .*/gateway-runtime:.*|image: ${DOCKER_REGISTRY}/gateway-runtime:$VERSION|" \
+            -e "s|image: .*/codemode-executor:.*|image: ${DOCKER_REGISTRY}/codemode-executor:$VERSION|" \
             "$DIST_COMPOSE_FILE"
         rm -f "$DIST_COMPOSE_FILE.bak"
         echo "Updated $DIST_COMPOSE_FILE with gateway version $VERSION"

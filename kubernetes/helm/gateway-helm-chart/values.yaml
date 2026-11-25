@@ -1455,13 +1455,15 @@ gateway:
         ops: 9100
       annotations: {}
       labels: {}
+    # The executor refuses to start unless 128 MiB + max_concurrent_runs (default 8) ×
+    # sandbox.max_memory_bytes (default 64 MiB) fits in limits.memory, and sets GOMEMLIMIT from it.
     resources:
       requests:
         cpu: 250m
-        memory: 256Mi
+        memory: 512Mi
       limits:
         cpu: "1"
-        memory: 512Mi
+        memory: 1Gi
     podDisruptionBudget:
       enabled: true
       minAvailable: 1

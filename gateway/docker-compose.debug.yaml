@@ -82,6 +82,24 @@ services:
     security_opt:
       - seccomp:unconfined   # dlv uses syscalls blocked by the default seccomp profile
 
+  # Code Mode executor (optional; the release image, not a debug build): an MCP server with search and execute tools over the gateway's
+  # MCP proxies. Start it with `docker compose --profile codemode up`, then deploy an Mcp proxy whose
+  # upstream is http://codemode-executor:7100/endpoints/default/mcp and whose set-headers policy
+  # names its member proxies in X-Codemode-Sources (see gateway/codemode-executor/README.md).
+  codemode-executor:
+    image: ghcr.io/wso2/api-platform/codemode-executor:latest
+    profiles: ["codemode"]
+    # 128 MiB + max_concurrent_runs (8) × sandbox.max_memory_bytes (64 MiB), with headroom; the
+    # executor checks this at start and sets GOMEMLIMIT from it.
+    mem_limit: 1g
+    read_only: true
+    tmpfs:
+      - /tmp
+    ports:
+      - "9100:9100"   # /healthz, /metrics
+    networks:
+      - gateway-network
+
 volumes:
   controller-data:
     driver: local

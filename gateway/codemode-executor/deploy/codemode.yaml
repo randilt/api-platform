@@ -2,12 +2,18 @@ apiVersion: gateway.api-platform.wso2.com/v1
 kind: Mcp
 metadata:
   name: ops-codemode-v1
-  annotations:
-    codemode.api-platform.wso2.com/sources: "inventory-mcp-v1,weather-mcp-v1"
 spec:
   displayName: Ops toolkit Code Mode
   version: v1
   context: /codemode
   specVersion: "2025-06-18"
   upstream:
-    url: http://codemode:7100/endpoints/ops/mcp
+    url: http://codemode-executor:7100/endpoints/default/mcp
+  policies:
+    - name: set-headers
+      version: v1
+      params:
+        request:
+          headers:
+            - name: X-Codemode-Sources
+              value: "inventory=/inventory/mcp,weather=/weather/mcp"

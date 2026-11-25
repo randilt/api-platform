@@ -30,6 +30,7 @@ DOCKER_REGISTRY ?= ghcr.io/wso2/api-platform
 CONTROLLER_IMAGE := $(DOCKER_REGISTRY)/gateway-controller
 GATEWAY_BUILDER_IMAGE := $(DOCKER_REGISTRY)/gateway-builder
 GATEWAY_RUNTIME_IMAGE := $(DOCKER_REGISTRY)/gateway-runtime
+CODEMODE_EXECUTOR_IMAGE := $(DOCKER_REGISTRY)/codemode-executor
 
 .DEFAULT_GOAL := help
 
@@ -85,7 +86,7 @@ help: ## Show this help message
 # Note: Controller must be built last since it depends on the build-manifest.yaml
 # generated during the gateway-runtime build.
 .PHONY: build
-build: build-gateway-runtime build-gateway-builder build-controller ## Build all gateway components
+build: build-gateway-runtime build-gateway-builder build-controller build-codemode-executor ## Build all gateway components
 
 # Note: Controller must be built last since it depends on the build-manifest.yaml
 # generated during the gateway-runtime build.
@@ -119,6 +120,11 @@ build-gateway-builder: ## Build gateway-builder Docker image
 	$(MAKE) -C gateway-builder build VERSION=$(VERSION)
 
 
+.PHONY: build-codemode-executor
+build-codemode-executor: ## Build codemode-executor Docker image (Code Mode MCP executor)
+	@echo "Building codemode-executor Docker image ($(VERSION))..."
+	$(MAKE) -C codemode-executor build VERSION=$(VERSION)
+
 .PHONY: build-gateway-runtime
 build-gateway-runtime: ## Build gateway-runtime Docker image (Router + Policy Engine)
 	@echo "Building gateway-runtime Docker image ($(VERSION))..."
@@ -139,7 +145,7 @@ build-gateway-runtime-debug: ## Build debug gateway-runtime image for remote deb
 # Note: Controller must be built last since it depends on the build-manifest.yaml
 # generated during the gateway-runtime build.
 .PHONY: build-and-push-multiarch
-build-and-push-multiarch: build-and-push-multiarch-gateway-runtime build-and-push-multiarch-gateway-builder build-and-push-multiarch-controller ## Build and push all gateway components for multiple architectures
+build-and-push-multiarch: build-and-push-multiarch-gateway-runtime build-and-push-multiarch-gateway-builder build-and-push-multiarch-controller build-and-push-multiarch-codemode-executor ## Build and push all gateway components for multiple architectures
 
 .PHONY: build-and-push-multiarch-controller
 build-and-push-multiarch-controller: ## Build and push gateway-controller Docker image for multiple architectures
@@ -156,9 +162,14 @@ build-and-push-multiarch-gateway-runtime: ## Build and push gateway-runtime Dock
 	@echo "Building and pushing multi-arch gateway-runtime Docker image ($(VERSION))..."
 	$(MAKE) -C gateway-runtime build-and-push-multiarch VERSION=$(VERSION)
 
+.PHONY: build-and-push-multiarch-codemode-executor
+build-and-push-multiarch-codemode-executor: ## Build and push codemode-executor Docker image for multiple architectures
+	@echo "Building and pushing multi-arch codemode-executor Docker image ($(VERSION))..."
+	$(MAKE) -C codemode-executor build-and-push-multiarch VERSION=$(VERSION)
+
 # Test Targets
 .PHONY: test
-test: test-controller test-gateway-builder test-policy-engine ## Run all tests
+test: test-controller test-gateway-builder test-policy-engine test-codemode-executor ## Run all tests
 
 .PHONY: test-controller
 test-controller: ## Test gateway-controller
@@ -171,6 +182,10 @@ test-gateway-builder: ## Test gateway-builder
 .PHONY: test-policy-engine
 test-policy-engine: ## Test policy-engine
 	$(MAKE) -C gateway-runtime test
+
+.PHONY: test-codemode-executor
+test-codemode-executor: ## Test codemode-executor
+	$(MAKE) -C codemode-executor test
 
 # The integration framework builds the gateway images from source itself.
 # INTEGRATION_TEST_FLAGS passes extra suite flags, e.g. INTEGRATION_TEST_FLAGS=-logs to capture
@@ -255,6 +270,7 @@ dist: clean-dist ## Build standalone gateway distribution zip
 	@sed -i.bak \
 	    -e 's|/gateway-controller:[^[:space:]]*|/gateway-controller:$(DIST_VERSION)|g' \
 	    -e 's|/gateway-runtime:[^[:space:]]*|/gateway-runtime:$(DIST_VERSION)|g' \
+	    -e 's|/codemode-executor:[^[:space:]]*|/codemode-executor:$(DIST_VERSION)|g' \
 	    $(DIST_DIR)/docker-compose.yaml
 	@rm -f $(DIST_DIR)/docker-compose.yaml.bak
 	@sed -i.bak 's/^  version: .*/  version: $(DIST_VERSION)/' $(DIST_DIR)/build.yaml
