@@ -1,0 +1,119 @@
+[
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "readOnlyHint": false
+    },
+    "description": "Permanently delete an item.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sku": {
+          "type": "string",
+          "description": "the item SKU, e.g. SKU-001"
+        }
+      },
+      "required": [
+        "sku"
+      ],
+      "additionalProperties": false
+    },
+    "name": "delete_item",
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "deleted": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "deleted"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "description": "Get the current stock level for one SKU.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sku": {
+          "type": "string",
+          "description": "the item SKU, e.g. SKU-001"
+        }
+      },
+      "required": [
+        "sku"
+      ],
+      "additionalProperties": false
+    },
+    "name": "get_stock",
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "sku": {
+          "type": "string"
+        },
+        "qty": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sku",
+        "qty"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "description": "List every inventory item with its quantity and warehouse.",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "list_items",
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "object",
+            "properties": {
+              "sku": {
+                "type": "string",
+                "description": "stock keeping unit"
+              },
+              "name": {
+                "type": "string"
+              },
+              "qty": {
+                "type": "integer",
+                "description": "units on hand"
+              },
+              "warehouse": {
+                "type": "string",
+                "description": "city of the warehouse holding the item"
+              }
+            },
+            "required": [
+              "sku",
+              "name",
+              "qty",
+              "warehouse"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

@@ -1,0 +1,39 @@
+[
+  {
+    "description": "Get today's forecast for a city.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "type": "string",
+          "description": "city name"
+        }
+      },
+      "required": [
+        "city"
+      ],
+      "additionalProperties": false
+    },
+    "name": "get_forecast",
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "type": "string"
+        },
+        "tempC": {
+          "type": "number"
+        },
+        "condition": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "city",
+        "tempC",
+        "condition"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

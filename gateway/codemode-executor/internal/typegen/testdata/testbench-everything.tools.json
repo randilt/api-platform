@@ -1,0 +1,58 @@
+[
+  {
+    "description": "Adds two numbers",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "a": {
+          "description": "First number",
+          "type": "number"
+        },
+        "b": {
+          "description": "Second number",
+          "type": "number"
+        }
+      },
+      "required": [
+        "a",
+        "b"
+      ],
+      "type": "object"
+    },
+    "name": "add"
+  },
+  {
+    "description": "Echoes back the input",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "description": "Message to echo",
+          "type": "string"
+        }
+      },
+      "required": [
+        "message"
+      ],
+      "type": "object"
+    },
+    "name": "echo"
+  },
+  {
+    "description": "Reports the value of a header on the inbound HTTP request",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "Header name to read from the request",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "name": "headers"
+  }
+]
