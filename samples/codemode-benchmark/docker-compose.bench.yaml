@@ -1,0 +1,11 @@
+# Adds the benchmark's MCP servers to the gateway stack. From the gateway directory:
+#   docker compose -f docker-compose.yaml -f ../samples/codemode-benchmark/docker-compose.bench.yaml \
+#     --profile codemode up -d gateway-controller gateway-runtime codemode-executor bench-mocks
+services:
+  bench-mocks:
+    build: ../samples/codemode-benchmark
+    image: codemode-benchmark-mocks:local
+    read_only: true
+    mem_limit: 128m
+    networks:
+      - gateway-network

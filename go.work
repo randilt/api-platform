@@ -23,6 +23,7 @@ use (
 	./platform-api
 	./portals/ai-workspace/bff
 	./portals/api-control-plane/bff
+	./samples/codemode-benchmark
 	./samples/sample-service
 	./sdk/ai
 	./sdk/core
